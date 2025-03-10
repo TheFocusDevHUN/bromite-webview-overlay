@@ -1,29 +1,54 @@
 #!/sbin/sh
-
 # Exit immediately if a command fails
 set -e
 
+# Output to console for debugging
+echo -e "ui_print Starting Bromite WebView installation for Android Nougat..." >> /proc/self/fd/${2}
+
 # Extract the package to a temporary location
+echo -e "ui_print Extracting installation files..." >> /proc/self/fd/${2}
 unzip -oq ${3} -d "/tmp/BromiteWebViewInstaller"
 
 # Create faux mountpoints
-mkdir /picodroid_system
+mkdir -p /picodroid_system
 
-# Mount the neccesary partitions
-mount -o rw $(readlink -f $(cd /dev && find /dev/block -type l -name system$(getprop ro.boot.slot_suffix) | head -n 1 )) /picodroid_system
+# Mount the necessary partitions for Nougat
+echo -e "ui_print Mounting system partition..." >> /proc/self/fd/${2}
+mount -o rw $(readlink -f $(cd /dev && find /dev/block -type l -name system | head -n 1 )) /picodroid_system
 
-# Copy the overlay to the appropriate location
-cp /tmp/BromiteWebViewInstaller/system/product/overlay/treble-overlay-bromite-webview.apk /picodroid_system/system/product/overlay
-
-# Copy the OTA survival script to the appropriate location
-if [ -d /picodroid_system/system/addon.d ]
-    then cp /tmp/BromiteWebViewInstaller/system/addon.d/39-bromite-webview.sh /picodroid_system/system/addon.d
+# Check where to put the overlay (Nougat compatible)
+echo -e "ui_print Detecting appropriate overlay directory..." >> /proc/self/fd/${2}
+if [ -d /picodroid_system/system/overlay ]; then
+    OVERLAY_DIR="/picodroid_system/system/overlay"
+    echo -e "ui_print Using /system/overlay directory" >> /proc/self/fd/${2}
+elif [ -d /picodroid_system/vendor/overlay ]; then
+    OVERLAY_DIR="/picodroid_system/vendor/overlay"
+    echo -e "ui_print Using /vendor/overlay directory" >> /proc/self/fd/${2}
+else
+    echo -e "ui_print Creating /system/overlay directory" >> /proc/self/fd/${2}
+    mkdir -p /picodroid_system/system/overlay
+    OVERLAY_DIR="/picodroid_system/system/overlay"
 fi
 
-# Make the script executable
+# Copy the overlay to the appropriate location
+echo -e "ui_print Copying overlay to $OVERLAY_DIR..." >> /proc/self/fd/${2}
+cp /tmp/BromiteWebViewInstaller/system/product/overlay/treble-overlay-bromite-webview.apk $OVERLAY_DIR/
+
+# Set proper permissions
+chmod 644 $OVERLAY_DIR/treble-overlay-bromite-webview.apk
+
+# Copy the OTA survival script
+echo -e "ui_print Setting up OTA survival..." >> /proc/self/fd/${2}
+if [ ! -d /picodroid_system/system/addon.d ]; then
+    mkdir -p /picodroid_system/system/addon.d
+    echo -e "ui_print Created addon.d directory" >> /proc/self/fd/${2}
+fi
+
+cp /tmp/BromiteWebViewInstaller/system/addon.d/39-bromite-webview.sh /picodroid_system/system/addon.d/
 chmod 755 /picodroid_system/system/addon.d/39-bromite-webview.sh
 
 # Unmount the previously mounted partitions
+echo -e "ui_print Unmounting partitions..." >> /proc/self/fd/${2}
 umount -l /picodroid_system
 
 # Delete the faux mountpoints
@@ -35,3 +60,5 @@ rm -rf /tmp/BromiteWebViewInstaller
 # Inform the user that the update has been successful
 echo -e "ui_print Update successfully installed!" >> /proc/self/fd/${2}
 echo -e "ui_print You can now install Bromite SystemWebView as a regular app!" >> /proc/self/fd/${2}
+echo -e "ui_print After installation, go to Developer options > WebView implementation" >> /proc/self/fd/${2}
+echo -e "ui_print and select Bromite SystemWebView" >> /proc/self/fd/${2}
